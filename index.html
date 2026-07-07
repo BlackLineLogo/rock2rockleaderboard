@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rock 2 Rock - Broadcast Leaderboard</title>
+    <style>
+        body {
+            background-color: #00ff00; 
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .leaderboard-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 450px;
+            background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            overflow: hidden;
+            border: 3px solid #b87333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #b87333 0%, #8b4513 100%);
+            color: #ffffff;
+            padding: 8px 20px;
+            text-align: center;
+            border-bottom: 3px solid #5d2e0a;
+        }
+
+        .header-main {
+            font-family: 'Impact', sans-serif;
+            font-size: 34px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            line-height: 1;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+        }
+
+        .header-sub {
+            font-size: 13px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: #f0d0b5;
+            margin-top: 2px;
+        }
+
+        /* Removed min-height to fit content exactly */
+        .board-body {
+            padding: 5px 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            padding: 8px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .row:last-child {
+            border-bottom: none;
+        }
+
+        .rank { 
+            color: #b87333; 
+            font-weight: 900; 
+            font-size: 22px;
+            width: 35px;
+            flex-shrink: 0;
+        }
+        
+        .name-block {
+            flex: 1;
+            min-width: 0;
+            padding-right: 10px;
+        }
+        
+        .name { 
+            font-weight: 800; 
+            font-size: 20px;
+            color: #222;
+            text-transform: uppercase; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .category { 
+            font-size: 12px; 
+            color: #666; 
+            font-weight: 700;
+        }
+        
+        .metric {
+            text-align: right;
+            font-weight: 900;
+            font-size: 18px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .distance { color: #5d2e0a; }
+        .finished { color: #b87333; }
+        .error-msg { color: #b87333; font-weight: bold; padding: 40px; text-align: center;}
+    </style>
+</head>
+<body>
+
+    <div class="leaderboard-container">
+        <div class="header">
+            <div class="header-main">ROCK 2 ROCK</div>
+            <div class="header-sub">LEADERBOARD</div>
+        </div>
+        <div class="board-body" id="board-body">
+            <div class="error-msg">Loading Race Data...</div>
+        </div>
+    </div>
+
+    <script>
+        const eventId = "66bf4318d1c783279d183dd3"; 
+        const speedWindow = "120"; 
+        let allAthletes = [];
+        let currentPage = 0;
+        const itemsPerPage = 5;
+
+        function displayStatus(message) {
+            const board = document.getElementById('board-body');
+            board.innerHTML = `<div class="error-msg">${message}</div>`;
+        }
+
+        function fetchRaceData() {
+            fetch(`https://racemap.com/api/data/v1/${eventId}/current?avgSpeedWindow=${speedWindow}`)
+                .then(response => { if (!response.ok) throw new Error(); return response.json(); })
+                .then(data => {
+                    if (data && data.starters && data.starters.length > 0) {
+                        allAthletes = data.starters.sort((a, b) => {
+                            let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
+                            let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
+                            return aDist - bDist;
+                        });
+                        renderCurrentPage();
+                    } else {
+                        displayStatus("Waiting for race data...");
+                    }
+                })
+                .catch(() => displayStatus("Signal Lost - Retrying..."));
+        }
+
+        function renderCurrentPage() {
+            if (allAthletes.length === 0) return;
+            const board = document.getElementById('board-body');
+            let totalPages = Math.ceil(allAthletes.length / itemsPerPage);
+            if (currentPage >= totalPages) currentPage = 0; 
+            
+            let pageData = allAthletes.slice(currentPage * itemsPerPage, (currentPage * itemsPerPage) + itemsPerPage);
+            let pageHTML = "";
+
+            pageData.forEach((athlete, index) => {
+                let actualRank = (currentPage * itemsPerPage) + index + 1;
+                let metricHTML = (typeof athlete.current?.toFinish === 'number') 
+                    ? (athlete.current.toFinish > 0 ? `<div class="metric distance">${(athlete.current.toFinish * 0.000621371).toFixed(2)} mi</div>` : `<div class="metric finished">FINISH 🏁</div>`)
+                    : `<div class="metric" style="color:#999">STANDBY</div>`;
+
+                pageHTML += `
+                    <div class="row">
+                        <div class="rank">${actualRank.toString().padStart(2, '0')}</div>
+                        <div class="name-block">
+                            <div class="name">${athlete.name || "Paddler"}</div>
+                            <div class="category">${athlete.category || ""}</div>
+                        </div>
+                        ${metricHTML}
+                    </div>
+                `;
+            });
+
+            board.style.opacity = 0;
+            setTimeout(() => {
+                board.innerHTML = pageHTML;
+                board.style.opacity = 1;
+            }, 300);
+        }
+
+        fetchRaceData();
+        setInterval(fetchRaceData, 60000);
+        setInterval(() => { if (allAthletes.length > 0) { currentPage = (currentPage + 1) % Math.ceil(allAthletes.length / itemsPerPage); renderCurrentPage(); } }, 8000);
+    </script>
+</body>
+</html>
