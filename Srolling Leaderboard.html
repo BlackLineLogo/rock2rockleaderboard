@@ -5,54 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Race Ticker</title>
     <style>
-        /* ==========================================
-            TICKER SETTINGS
-            Change the 240s to make it scroll faster or slower
-            ========================================== */
-        :root {
-            --ticker-speed: 240s; 
+        /* Force the body to fill the entire browser source area */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
         }
 
-        /* Base Broadcast Settings */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background: transparent; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
+        :root {
+            --ticker-speed: 240s; 
         }
 
         /* The Ticker Container */
         .ticker-wrap {
             position: absolute;
-            bottom: 0; /* Anchored to the very bottom */
+            bottom: 0; /* Ensures it sits at the absolute bottom */
             left: 0;
             width: 100%;
-            height: 80px; /* Increased height for more breathing room */
-            background: rgba(20, 24, 28, 0.95); /* Deep slate to match leaderboard */
-            border-top: 4px solid #d97736; /* Copper accent */
+            height: 100px; /* Taller bar for visual "weight" */
+            background: rgba(20, 24, 28, 0.95);
+            border-top: 4px solid #d97736;
             display: flex;
             align-items: center;
-            box-shadow: 0 -10px 25px rgba(0,0,0,0.4);
+            /* Shadow only on top to avoid "pushing" the bar up */
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.4); 
         }
 
-        /* The "LIVE" Label on the left side */
         .ticker-label {
             background: #d97736;
             color: #1a1f24;
             font-weight: 900;
-            font-size: 22px;
-            padding: 0 30px;
+            font-size: 24px; /* Slightly larger text */
+            padding: 0 40px;
             height: 100%;
             display: flex;
             align-items: center;
             text-transform: uppercase;
             letter-spacing: 2px;
             z-index: 10;
-            box-shadow: 10px 0 20px rgba(0,0,0,0.5);
         }
 
-        /* The Scrolling Area */
         .ticker-content {
             flex: 1;
             overflow: hidden;
@@ -61,6 +54,107 @@
         }
 
         .ticker-track {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            white-space: nowrap;
+            position: absolute;
+            will-change: transform;
+            animation: scroll-left var(--ticker-speed) linear infinite;
+        }
+
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 40px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .ticker-item::after {
+            content: "•";
+            position: absolute;
+            right: 0;
+            color: #55626d;
+        }
+
+        .rank { color: #d97736; margin-right: 12px; font-weight: 900;}
+        .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0;}
+        .metric { font-weight: 800; color: #88929b; }
+        .finished { color: #ffffff; letter-spacing: 1px;}
+
+        @keyframes scroll-left {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ticker-wrap">
+        <div class="ticker-label">ROCK 2 ROCK</div>
+        <div class="ticker-content">
+            <div class="ticker-track" id="ticker-track">
+                <div class="ticker-item">Loading live race data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
+        const REFRESH_RATE_MS = 30000; 
+
+        async function fetchRaceData() {
+            try {
+                const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
+                if (!response.ok) throw new Error("API Error");
+                const data = await response.json();
+                
+                if (!data.starters || data.starters.length === 0) return;
+
+                const sortedAthletes = data.starters.sort((a, b) => {
+                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
+                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
+                    return aDist - bDist;
+                });
+
+                let htmlString = '';
+                
+                sortedAthletes.forEach((athlete, index) => {
+                    const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                    const athleteName = athlete.name || "Paddler";
+                    
+                    let displayMetric = "";
+                    
+                    if (milesToFinish > 0.05) {
+                        displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi to go</span>`;
+                    } else {
+                        displayMetric = `<span class="metric finished">🏁 FINISHED</span>`;
+                    }
+
+                    htmlString += `
+                        <div class="ticker-item">
+                            <span class="rank">${index + 1}</span>
+                            <span class="name">${athleteName}</span>
+                            ${displayMetric}
+                        </div>
+                    `;
+                });
+
+                document.getElementById('ticker-track').innerHTML = htmlString + htmlString;
+
+            } catch (error) {
+                console.error("Data fetch failed:", error);
+            }
+        }
+
+        fetchRaceData();
+        setInterval(fetchRaceData, REFRESH_RATE_MS);
+    </script>
+</body>
+</html>        .ticker-track {
             display: inline-flex;
             align-items: center;
             height: 100%;
