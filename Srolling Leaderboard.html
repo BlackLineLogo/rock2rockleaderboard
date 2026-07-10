@@ -25,10 +25,10 @@
         /* The Ticker Container */
         .ticker-wrap {
             position: absolute;
-            bottom: 20px; /* Added breathing room at the bottom */
+            bottom: 0; /* Anchored to the very bottom */
             left: 0;
             width: 100%;
-            height: 60px;
+            height: 80px; /* Increased height for more breathing room */
             background: rgba(20, 24, 28, 0.95); /* Deep slate to match leaderboard */
             border-top: 4px solid #d97736; /* Copper accent */
             display: flex;
@@ -78,7 +78,7 @@
             color: #fff;
             font-size: 22px;
             font-weight: 700;
-            position: relative; /* Ensure the pseudo-element positions correctly */
+            position: relative;
         }
 
         /* Adds a bullet point between racers */
@@ -136,15 +136,13 @@
 
                 let htmlString = '';
                 
-                // This builds the long string of text for the crawler
                 sortedAthletes.forEach((athlete, index) => {
                     const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
                     const athleteName = athlete.name || "Paddler";
                     
                     let displayMetric = "";
                     
-                    // The Checkered Flag Logic
-                    if (milesToFinish > 0.05) { // Adding a small buffer so 0.01 triggers the finish
+                    if (milesToFinish > 0.05) {
                         displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi to go</span>`;
                     } else {
                         displayMetric = `<span class="metric finished">🏁 FINISHED</span>`;
@@ -159,7 +157,6 @@
                     `;
                 });
 
-                // We duplicate the string once so that the crawler loops seamlessly without a massive blank gap
                 document.getElementById('ticker-track').innerHTML = htmlString + htmlString;
 
             } catch (error) {
