@@ -6,9 +6,9 @@
     <title>Live Race Ticker</title>
     <style>
         /* ==========================================
-           TICKER SETTINGS
-           Change the 45s to make it scroll faster or slower
-           ========================================== */
+            TICKER SETTINGS
+            Change the 240s to make it scroll faster or slower
+            ========================================== */
         :root {
             --ticker-speed: 240s; 
         }
@@ -22,10 +22,10 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* The Ticker Container (Locks to the bottom of the screen) */
+        /* The Ticker Container */
         .ticker-wrap {
             position: absolute;
-            bottom: 0;
+            bottom: 20px; /* Added breathing room at the bottom */
             left: 0;
             width: 100%;
             height: 60px;
@@ -78,6 +78,7 @@
             color: #fff;
             font-size: 22px;
             font-weight: 700;
+            position: relative; /* Ensure the pseudo-element positions correctly */
         }
 
         /* Adds a bullet point between racers */
@@ -115,7 +116,7 @@
         // ==========================================
         // CONFIGURATION
         // ==========================================
-        const EVENT_ID = "66bf4318d1c783279d183dd3"; 
+        const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
         const REFRESH_RATE_MS = 30000; 
         // ==========================================
 
