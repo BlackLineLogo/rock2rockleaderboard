@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Race Ticker</title>
+    <style>
+        /* ==========================================
+           TICKER SETTINGS
+           Change the 45s to make it scroll faster or slower
+           ========================================== */
+        :root {
+            --ticker-speed: 240s; 
+        }
+
+        /* Base Broadcast Settings */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: transparent; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* The Ticker Container (Locks to the bottom of the screen) */
+        .ticker-wrap {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: rgba(20, 24, 28, 0.95); /* Deep slate to match leaderboard */
+            border-top: 4px solid #d97736; /* Copper accent */
+            display: flex;
+            align-items: center;
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.4);
+        }
+
+        /* The "LIVE" Label on the left side */
+        .ticker-label {
+            background: #d97736;
+            color: #1a1f24;
+            font-weight: 900;
+            font-size: 22px;
+            padding: 0 30px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 10;
+            box-shadow: 10px 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* The Scrolling Area */
+        .ticker-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+        }
+
+        .ticker-track {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            white-space: nowrap;
+            position: absolute;
+            will-change: transform;
+            animation: scroll-left var(--ticker-speed) linear infinite;
+        }
+
+        /* Individual Racer Data Blocks */
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 40px;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        /* Adds a bullet point between racers */
+        .ticker-item::after {
+            content: "•";
+            position: absolute;
+            right: 0;
+            color: #55626d;
+        }
+
+        .rank { color: #d97736; margin-right: 12px; font-weight: 900;}
+        .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0;}
+        .metric { font-weight: 800; color: #88929b; }
+        .finished { color: #ffffff; letter-spacing: 1px;}
+
+        /* The Animation Math */
+        @keyframes scroll-left {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ticker-wrap">
+        <div class="ticker-label">ROCK 2 ROCK</div>
+        <div class="ticker-content">
+            <div class="ticker-track" id="ticker-track">
+                <div class="ticker-item">Loading live race data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const EVENT_ID = "66bf4318d1c783279d183dd3"; 
+        const REFRESH_RATE_MS = 30000; 
+        // ==========================================
+
+        async function fetchRaceData() {
+            try {
+                const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
+                if (!response.ok) throw new Error("API Error");
+                const data = await response.json();
+                
+                if (!data.starters || data.starters.length === 0) return;
+
+                const sortedAthletes = data.starters.sort((a, b) => {
+                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
+                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
+                    return aDist - bDist;
+                });
+
+                let htmlString = '';
+                
+                // This builds the long string of text for the crawler
+                sortedAthletes.forEach((athlete, index) => {
+                    const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                    const athleteName = athlete.name || "Paddler";
+                    
+                    let displayMetric = "";
+                    
+                    // The Checkered Flag Logic
+                    if (milesToFinish > 0.05) { // Adding a small buffer so 0.01 triggers the finish
+                        displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi to go</span>`;
+                    } else {
+                        displayMetric = `<span class="metric finished">🏁 FINISHED</span>`;
+                    }
+
+                    htmlString += `
+                        <div class="ticker-item">
+                            <span class="rank">${index + 1}</span>
+                            <span class="name">${athleteName}</span>
+                            ${displayMetric}
+                        </div>
+                    `;
+                });
+
+                // We duplicate the string once so that the crawler loops seamlessly without a massive blank gap
+                document.getElementById('ticker-track').innerHTML = htmlString + htmlString;
+
+            } catch (error) {
+                console.error("Data fetch failed:", error);
+            }
+        }
+
+        fetchRaceData();
+        setInterval(fetchRaceData, REFRESH_RATE_MS);
+    </script>
+</body>
+</html>

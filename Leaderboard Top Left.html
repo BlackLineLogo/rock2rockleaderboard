@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Race Leaderboard</title>
+    <style>
+        /* Base Broadcast Settings */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: transparent; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Main Container */
+        .leaderboard-wrapper {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            width: 480px;
+            background: rgba(20, 24, 28, 0.95); /* Deep slate */
+            border-radius: 8px;
+            border-left: 6px solid #d97736; /* Copper accent */
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        /* Branding Header */
+        .header {
+            background: #1a1f24;
+            padding: 16px 24px;
+            border-bottom: 2px solid #2a3138;
+        }
+        .header-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            line-height: 1.1;
+        }
+        .header-subtitle {
+            color: #d97736;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+
+        /* Athlete Rows */
+        .row {
+            display: flex;
+            align-items: center;
+            padding: 14px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .row:last-child { border-bottom: none; }
+        .row:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+
+        /* Typography */
+        .rank-col {
+            width: 45px;
+            color: #d97736;
+            font-size: 22px;
+            font-weight: 900;
+        }
+        .name-col {
+            flex-grow: 1;
+            color: #f0f0f0;
+            font-size: 19px;
+            font-weight: 700;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 15px;
+        }
+        .metric-col {
+            color: #ffffff;
+            font-size: 19px;
+            font-weight: 800;
+            text-align: right;
+        }
+        
+        /* Loading State */
+        .status-msg {
+            padding: 40px 24px;
+            text-align: center;
+            color: #88929b;
+            font-size: 16px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="leaderboard-wrapper">
+        <div class="header">
+            <div class="header-title">ROCK 2 ROCK</div>
+            <div class="header-subtitle">Live Leaderboard</div>
+        </div>
+        <div id="board-content">
+            <div class="status-msg">Syncing Race Timing...</div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION: UPDATE THESE BEFORE THE RACE
+        // ==========================================
+        const EVENT_ID = "66bf4318d1c783279d183dd3"; 
+        const REFRESH_RATE_MS = 30000; // 30 seconds
+        // ==========================================
+
+        const boardContent = document.getElementById('board-content');
+
+        async function fetchRaceData() {
+            try {
+                const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
+                
+                if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+                const data = await response.json();
+                
+                if (!data.starters || data.starters.length === 0) {
+                    boardContent.innerHTML = '<div class="status-msg">Waiting for start signal...</div>';
+                    return;
+                }
+
+                // Sort by distance remaining
+                const sortedAthletes = data.starters.sort((a, b) => {
+                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
+                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
+                    return aDist - bDist;
+                });
+
+                // Generate HTML for Top 5
+                let htmlString = '';
+                sortedAthletes.slice(0, 5).forEach((athlete, index) => {
+                    const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                    const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
+                    const athleteName = athlete.name || "Paddler";
+
+                    htmlString += `
+                        <div class="row">
+                            <div class="rank-col">${index + 1}</div>
+                            <div class="name-col">${athleteName}</div>
+                            <div class="metric-col">${displayMetric}</div>
+                        </div>
+                    `;
+                });
+
+                boardContent.innerHTML = htmlString;
+
+            } catch (error) {
+                console.error("Data fetch failed:", error);
+                // Keep existing data on screen if the connection briefly drops, 
+                // only show error if the board is completely empty.
+                if (boardContent.innerHTML.includes("Syncing") || boardContent.innerHTML.includes("Waiting")) {
+                     boardContent.innerHTML = '<div class="status-msg">Reconnecting...</div>';
+                }
+            }
+        }
+
+        // Initialize immediately, then run on the set interval
+        fetchRaceData();
+        setInterval(fetchRaceData, REFRESH_RATE_MS);
+    </script>
+</body>
+</html>
