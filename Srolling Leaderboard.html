@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Race Ticker</title>
     <style>
-        /* Force the body to fill the entire browser source area */
         html, body {
             height: 100%;
             margin: 0;
@@ -13,11 +12,6 @@
             overflow: hidden;
         }
 
-        :root {
-            --ticker-speed: 240s; 
-        }
-
-        /* The Ticker Container */
         .ticker-wrap {
             position: absolute;
             bottom: 0;
@@ -59,7 +53,8 @@
             white-space: nowrap;
             position: absolute;
             will-change: transform;
-            animation: scroll-left var(--ticker-speed) linear infinite;
+            /* We will control the speed via JavaScript now */
+            animation: scroll-left linear infinite;
         }
 
         .ticker-item {
@@ -104,6 +99,8 @@
     <script>
         const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
         const REFRESH_RATE_MS = 60000; 
+        // Speed in pixels per second. Increase for faster scroll, decrease for slower.
+        const PIXELS_PER_SECOND = 60; 
 
         async function fetchRaceData() {
             try {
@@ -142,7 +139,13 @@
                     `;
                 });
 
-                document.getElementById('ticker-track').innerHTML = htmlString + htmlString;
+                const track = document.getElementById('ticker-track');
+                track.innerHTML = htmlString + htmlString;
+
+                // Calculate dynamic duration based on content width
+                // Width / Speed = Duration
+                const width = track.scrollWidth / 2; // Divided by 2 because we doubled the html
+                track.style.animationDuration = (width / PIXELS_PER_SECOND) + 's';
 
             } catch (error) {
                 console.error("Data fetch failed:", error);
