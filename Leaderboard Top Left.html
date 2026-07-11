@@ -100,7 +100,7 @@
     <div class="leaderboard-wrapper">
         <div class="header">
             <div class="header-title">ROCK 2 ROCK</div>
-            <div class="header-subtitle">Live Leaderboard</div>
+            <div id="page-indicator" class="header-subtitle">Live Leaderboard</div>
         </div>
         <div id="board-content">
             <div class="status-msg">Syncing Race Timing...</div>
@@ -112,10 +112,17 @@
         // CONFIGURATION
         // ==========================================
         const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
-        const REFRESH_RATE_MS = 60000; // 60 seconds
+        const REFRESH_RATE_MS = 60000;  // Fetch new data every 60 seconds
+        const ROTATION_RATE_MS = 8000;  // Rotate leaderboard every 8 seconds
+        const PAGE_SIZE = 5;            // Racers per page
         // ==========================================
 
         const boardContent = document.getElementById('board-content');
+        
+        // State variables
+        let allAthletes = [];
+        let currentPage = 0;
+        let rotationInterval = null;
 
         async function fetchRaceData() {
             try {
@@ -129,38 +136,58 @@
                     return;
                 }
 
-                // Sort by distance remaining
-                const sortedAthletes = data.starters.sort((a, b) => {
+                // Sort by distance remaining and save to global state
+                allAthletes = data.starters.sort((a, b) => {
                     let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
                     let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
                     return aDist - bDist;
                 });
 
-                // Generate HTML for Top 5
-                let htmlString = '';
-                sortedAthletes.slice(0, 5).forEach((athlete, index) => {
-                    const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
-                    const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
-                    const athleteName = athlete.name || "Paddler";
-
-                    htmlString += `
-                        <div class="row">
-                            <div class="rank-col">${index + 1}</div>
-                            <div class="name-col">${athleteName}</div>
-                            <div class="metric-col">${displayMetric}</div>
-                        </div>
-                    `;
-                });
-
-                boardContent.innerHTML = htmlString;
+                // If this is the very first successful fetch, kick off the rotation
+                if (!rotationInterval) {
+                    renderNextPage(); // Render immediately
+                    rotationInterval = setInterval(renderNextPage, ROTATION_RATE_MS);
+                }
 
             } catch (error) {
                 console.error("Data fetch failed:", error);
-                // Keep existing data on screen if the connection briefly drops, 
-                // only show error if the board is completely empty.
                 if (boardContent.innerHTML.includes("Syncing") || boardContent.innerHTML.includes("Waiting")) {
                      boardContent.innerHTML = '<div class="status-msg">Reconnecting...</div>';
                 }
+            }
+        }
+
+        function renderNextPage() {
+            if (allAthletes.length === 0) return;
+
+            // Calculate start and end indices for the current chunk
+            const startIndex = currentPage * PAGE_SIZE;
+            const endIndex = startIndex + PAGE_SIZE;
+            const pageAthletes = allAthletes.slice(startIndex, endIndex);
+
+            // Generate HTML for this specific chunk
+            let htmlString = '';
+            pageAthletes.forEach((athlete, index) => {
+                const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
+                const athleteName = athlete.name || "Paddler";
+                const overallRank = startIndex + index + 1; // Correct rank for the whole field
+
+                htmlString += `
+                    <div class="row">
+                        <div class="rank-col">${overallRank}</div>
+                        <div class="name-col">${athleteName}</div>
+                        <div class="metric-col">${displayMetric}</div>
+                    </div>
+                `;
+            });
+
+            boardContent.innerHTML = htmlString;
+
+            // Advance the page, reset to 0 if we've shown everyone
+            currentPage++;
+            if (currentPage * PAGE_SIZE >= allAthletes.length) {
+                currentPage = 0;
             }
         }
 
