@@ -5,79 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Race Ticker</title>
     <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: transparent; font-family: sans-serif; }
 
         .ticker-wrap {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 100px;
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 100px;
             background: rgba(20, 24, 28, 0.95);
             border-top: 4px solid #d97736;
-            display: flex;
-            align-items: center;
+            display: flex; align-items: center;
             box-shadow: 0 -10px 25px rgba(0,0,0,0.4); 
         }
 
         .ticker-label {
-            background: #d97736;
-            color: #1a1f24;
-            font-weight: 900;
-            font-size: 24px;
-            padding: 0 40px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            z-index: 10;
+            background: #d97736; color: #1a1f24;
+            font-weight: 900; font-size: 24px; padding: 0 40px;
+            height: 100%; display: flex; align-items: center;
+            text-transform: uppercase; letter-spacing: 2px; z-index: 10;
         }
 
-        .ticker-content {
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-            height: 100%;
-        }
+        .ticker-content { flex: 1; overflow: hidden; position: relative; height: 100%; }
 
         .ticker-track {
-            display: inline-flex;
-            align-items: center;
-            height: 100%;
-            white-space: nowrap;
-            position: absolute;
-            will-change: transform;
-            /* We will control the speed via JavaScript now */
+            display: inline-flex; align-items: center; height: 100%;
+            white-space: nowrap; position: absolute; will-change: transform;
             animation: scroll-left linear infinite;
         }
 
         .ticker-item {
-            display: inline-flex;
-            align-items: center;
-            padding: 0 40px;
-            color: #fff;
-            font-size: 22px;
-            font-weight: 700;
-            position: relative;
+            display: inline-flex; align-items: center; padding: 0 40px;
+            color: #fff; font-size: 22px; font-weight: 700; position: relative;
         }
 
-        .ticker-item::after {
-            content: "•";
-            position: absolute;
-            right: 0;
-            color: #55626d;
-        }
+        .ticker-item::after { content: "•"; position: absolute; right: 0; color: #55626d; }
 
         .rank { color: #d97736; margin-right: 12px; font-weight: 900;}
         .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0;}
-        .metric { font-weight: 800; color: #88929b; }
-        .finished { color: #ffffff; letter-spacing: 1px;}
+        .metric { font-weight: 800; color: #88929b; margin-left: 10px; }
+        .finished { color: #ffffff; letter-spacing: 1px; }
+
+        /* Label Styles */
+        .type-team, .type-solo { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-right: 10px; text-transform: uppercase; }
+        .type-team { background: #d97736; color: white; }
+        .type-solo { background: #444; color: #ccc; }
 
         @keyframes scroll-left {
             0% { transform: translateX(100vw); }
@@ -91,7 +59,7 @@
         <div class="ticker-label">ROCK 2 ROCK</div>
         <div class="ticker-content">
             <div class="ticker-track" id="ticker-track">
-                <div class="ticker-item">Loading live race data...</div>
+                <div class="ticker-item">Syncing live race data...</div>
             </div>
         </div>
     </div>
@@ -99,8 +67,13 @@
     <script>
         const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
         const REFRESH_RATE_MS = 60000; 
-        // Speed in pixels per second. Increase for faster scroll, decrease for slower.
         const PIXELS_PER_SECOND = 60; 
+
+        // Helper to determine category
+        function getCategoryType(divisionName) {
+            if (!divisionName) return "SOLO";
+            return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
+        }
 
         async function fetchRaceData() {
             try {
@@ -121,18 +94,20 @@
                 sortedAthletes.forEach((athlete, index) => {
                     const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
                     const athleteName = athlete.name || "Paddler";
+                    const typeLabel = getCategoryType(athlete.tags?.Division);
+                    const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
                     
                     let displayMetric = "";
-                    
                     if (milesToFinish > 0.05) {
-                        displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi to go</span>`;
+                        displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi</span>`;
                     } else {
-                        displayMetric = `<span class="metric finished">🏁 FINISHED</span>`;
+                        displayMetric = `<span class="metric finished">🏁 FINISH</span>`;
                     }
 
                     htmlString += `
                         <div class="ticker-item">
                             <span class="rank">${index + 1}</span>
+                            <span class="${typeClass}">${typeLabel}</span>
                             <span class="name">${athleteName}</span>
                             ${displayMetric}
                         </div>
@@ -140,11 +115,9 @@
                 });
 
                 const track = document.getElementById('ticker-track');
-                track.innerHTML = htmlString + htmlString;
+                track.innerHTML = htmlString + htmlString; // Double items for smooth loop
 
-                // Calculate dynamic duration based on content width
-                // Width / Speed = Duration
-                const width = track.scrollWidth / 2; // Divided by 2 because we doubled the html
+                const width = track.scrollWidth / 2;
                 track.style.animationDuration = (width / PIXELS_PER_SECOND) + 's';
 
             } catch (error) {
