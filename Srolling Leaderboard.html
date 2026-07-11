@@ -32,18 +32,18 @@
 
         .ticker-item {
             display: inline-flex; align-items: center; padding: 0 40px;
-            color: #fff; font-size: 22px; font-weight: 700; position: relative;
+            color: #fff; font-size: 26px; 
+            font-weight: 700; position: relative;
         }
 
         .ticker-item::after { content: "•"; position: absolute; right: 0; color: #55626d; }
 
-        .rank { color: #d97736; margin-right: 12px; font-weight: 900;}
-        .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0;}
-        .metric { font-weight: 800; color: #88929b; margin-left: 10px; }
-        .finished { color: #ffffff; letter-spacing: 1px; }
+        .rank { color: #d97736; margin-right: 12px; font-weight: 900; font-size: 24px;}
+        .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0; font-size: 26px; }
+        .metric { font-weight: 800; color: #88929b; margin-left: 10px; font-size: 22px; }
+        .finished { color: #ffffff; letter-spacing: 1px;}
 
-        /* Label Styles */
-        .type-team, .type-solo { font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-right: 10px; text-transform: uppercase; }
+        .type-team, .type-solo { font-size: 16px; padding: 2px 8px; border-radius: 4px; margin-right: 10px; text-transform: uppercase; }
         .type-team { background: #d97736; color: white; }
         .type-solo { background: #444; color: #ccc; }
 
@@ -59,7 +59,7 @@
         <div class="ticker-label">ROCK 2 ROCK</div>
         <div class="ticker-content">
             <div class="ticker-track" id="ticker-track">
-                <div class="ticker-item">Syncing live race data...</div>
+                <div class="ticker-item">Loading live race data...</div>
             </div>
         </div>
     </div>
@@ -67,12 +67,19 @@
     <script>
         const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
         const REFRESH_RATE_MS = 60000; 
-        const PIXELS_PER_SECOND = 60; 
+        const PIXELS_PER_SECOND = 35;
 
-        // Helper to determine category
         function getCategoryType(divisionName) {
             if (!divisionName) return "SOLO";
             return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
+        }
+
+        // Fix: Treat missing data as an extremely high distance so they sort to the back pre-race
+        function getDistance(athlete) {
+            if (athlete.current && athlete.current.toFinish !== undefined) {
+                return athlete.current.toFinish;
+            }
+            return Infinity; 
         }
 
         async function fetchRaceData() {
@@ -83,24 +90,37 @@
                 
                 if (!data.starters || data.starters.length === 0) return;
 
-                const sortedAthletes = data.starters.sort((a, b) => {
-                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
-                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
-                    return aDist - bDist;
-                });
+                const solos = data.starters
+                    .filter(s => getCategoryType(s.tags?.Division) === 'SOLO')
+                    .sort((a, b) => getDistance(a) - getDistance(b));
+                
+                const teams = data.starters
+                    .filter(s => getCategoryType(s.tags?.Division) === 'TEAM')
+                    .sort((a, b) => getDistance(a) - getDistance(b));
+
+                const orderedAthletes = [...solos, ...teams];
 
                 let htmlString = '';
                 
-                sortedAthletes.forEach((athlete, index) => {
-                    const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                orderedAthletes.forEach((athlete, index) => {
+                    const rawDistance = getDistance(athlete);
                     const athleteName = athlete.name || "Paddler";
                     const typeLabel = getCategoryType(athlete.tags?.Division);
                     const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
                     
                     let displayMetric = "";
-                    if (milesToFinish > 0.05) {
+                    
+                    // 1. Pre-race or no signal
+                    if (rawDistance === Infinity) {
+                        displayMetric = `<span class="metric">ON COURSE</span>`;
+                    } 
+                    // 2. Still racing (> 0.05 miles or ~80 meters)
+                    else if (rawDistance > 80) {
+                        const milesToFinish = rawDistance * 0.000621371;
                         displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi</span>`;
-                    } else {
+                    } 
+                    // 3. Finished
+                    else {
                         displayMetric = `<span class="metric finished">🏁 FINISH</span>`;
                     }
 
@@ -115,7 +135,7 @@
                 });
 
                 const track = document.getElementById('ticker-track');
-                track.innerHTML = htmlString + htmlString; // Double items for smooth loop
+                track.innerHTML = htmlString + htmlString; 
 
                 const width = track.scrollWidth / 2;
                 track.style.animationDuration = (width / PIXELS_PER_SECOND) + 's';
