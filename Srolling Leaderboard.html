@@ -41,7 +41,6 @@
         .rank { color: #d97736; margin-right: 12px; font-weight: 900; font-size: 24px;}
         .name { text-transform: uppercase; margin-right: 15px; color: #f0f0f0; font-size: 26px; }
         .metric { font-weight: 800; color: #88929b; margin-left: 10px; font-size: 22px; }
-        .finished { color: #ffffff; letter-spacing: 1px;}
 
         .type-team, .type-solo { font-size: 16px; padding: 2px 8px; border-radius: 4px; margin-right: 10px; text-transform: uppercase; }
         .type-team { background: #d97736; color: white; }
@@ -74,12 +73,12 @@
             return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
         }
 
-        // Fix: Treat missing data as an extremely high distance so they sort to the back pre-race
         function getDistance(athlete) {
-            if (athlete.current && athlete.current.toFinish !== undefined) {
-                return athlete.current.toFinish;
+            // Using 999999 instead of Infinity prevents NaN crashes during sorting
+            if (!athlete.current || athlete.current.toFinish === undefined) {
+                return 999999; 
             }
-            return Infinity; 
+            return athlete.current.toFinish;
         }
 
         async function fetchRaceData() {
@@ -90,19 +89,23 @@
                 
                 if (!data.starters || data.starters.length === 0) return;
 
+                // Sort Solos and assign them a rank (1, 2, 3...)
                 const solos = data.starters
                     .filter(s => getCategoryType(s.tags?.Division) === 'SOLO')
-                    .sort((a, b) => getDistance(a) - getDistance(b));
+                    .sort((a, b) => getDistance(a) - getDistance(b))
+                    .map((athlete, index) => ({ ...athlete, categoryRank: index + 1 }));
                 
+                // Sort Teams and assign them a rank (1, 2, 3...)
                 const teams = data.starters
                     .filter(s => getCategoryType(s.tags?.Division) === 'TEAM')
-                    .sort((a, b) => getDistance(a) - getDistance(b));
+                    .sort((a, b) => getDistance(a) - getDistance(b))
+                    .map((athlete, index) => ({ ...athlete, categoryRank: index + 1 }));
 
                 const orderedAthletes = [...solos, ...teams];
 
                 let htmlString = '';
                 
-                orderedAthletes.forEach((athlete, index) => {
+                orderedAthletes.forEach((athlete) => {
                     const rawDistance = getDistance(athlete);
                     const athleteName = athlete.name || "Paddler";
                     const typeLabel = getCategoryType(athlete.tags?.Division);
@@ -110,23 +113,16 @@
                     
                     let displayMetric = "";
                     
-                    // 1. Pre-race or no signal
-                    if (rawDistance === Infinity) {
+                    if (rawDistance === 999999 || rawDistance === 0) {
                         displayMetric = `<span class="metric">ON COURSE</span>`;
-                    } 
-                    // 2. Still racing (> 0.05 miles or ~80 meters)
-                    else if (rawDistance > 80) {
+                    } else {
                         const milesToFinish = rawDistance * 0.000621371;
                         displayMetric = `<span class="metric">${milesToFinish.toFixed(1)} mi</span>`;
-                    } 
-                    // 3. Finished
-                    else {
-                        displayMetric = `<span class="metric finished">🏁 FINISH</span>`;
                     }
 
                     htmlString += `
                         <div class="ticker-item">
-                            <span class="rank">${index + 1}</span>
+                            <span class="rank">${athlete.categoryRank}</span>
                             <span class="${typeClass}">${typeLabel}</span>
                             <span class="name">${athleteName}</span>
                             ${displayMetric}
