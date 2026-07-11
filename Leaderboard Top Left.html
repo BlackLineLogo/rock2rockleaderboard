@@ -57,7 +57,6 @@
             return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
         }
 
-        // Using 999999 as a safety value for sorting pre-race
         function getDistance(athlete) {
             if (!athlete.current || athlete.current.toFinish === undefined) return 999999;
             return athlete.current.toFinish;
@@ -73,14 +72,16 @@
                     return;
                 }
 
-                // Categorize and Sort
+                // Sort and assign categoryRank to each athlete within their group
                 const solos = data.starters
                     .filter(s => getCategoryType(s.tags?.Division) === 'SOLO')
-                    .sort((a, b) => getDistance(a) - getDistance(b));
+                    .sort((a, b) => getDistance(a) - getDistance(b))
+                    .map((athlete, index) => ({ ...athlete, categoryRank: index + 1 }));
                 
                 const teams = data.starters
                     .filter(s => getCategoryType(s.tags?.Division) === 'TEAM')
-                    .sort((a, b) => getDistance(a) - getDistance(b));
+                    .sort((a, b) => getDistance(a) - getDistance(b))
+                    .map((athlete, index) => ({ ...athlete, categoryRank: index + 1 }));
 
                 allAthletes = [...solos, ...teams];
                 
@@ -97,19 +98,18 @@
             const pageAthletes = allAthletes.slice(startIndex, startIndex + 5);
 
             let htmlString = '';
-            pageAthletes.forEach((athlete, index) => {
+            pageAthletes.forEach((athlete) => {
                 const rawDist = getDistance(athlete);
                 const typeLabel = getCategoryType(athlete.tags?.Division);
                 const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
                 
-                // Same logic as ticker: if dist is large/undefined, show ON COURSE
                 const displayMetric = (rawDist === 999999 || rawDist === 0) 
                     ? "ON COURSE" 
                     : `${(rawDist * 0.000621371).toFixed(1)} mi`;
 
                 htmlString += `
                     <div class="row">
-                        <div class="rank-col">${startIndex + index + 1}</div>
+                        <div class="rank-col">${athlete.categoryRank}</div>
                         <div class="name-col">${athlete.name} <span class="${typeClass}">${typeLabel}</span></div>
                         <div class="metric-col">${displayMetric}</div>
                     </div>
