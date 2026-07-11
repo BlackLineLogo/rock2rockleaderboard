@@ -1,100 +1,115 @@
-<script>
-    // ==========================================
-    // CONFIGURATION
-    // ==========================================
-    const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
-    const REFRESH_RATE_MS = 60000;  // 60 seconds
-    const ROTATION_RATE_MS = 8000;  // 8 seconds
-    const PAGE_SIZE = 5;
-    // ==========================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Race Leaderboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: transparent; font-family: sans-serif; overflow: hidden; }
+        
+        .leaderboard-wrapper {
+            position: absolute; top: 40px; left: 40px; width: 480px;
+            background: rgba(20, 24, 28, 0.95);
+            border-radius: 8px; border-left: 6px solid #d97736;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
 
-    const boardContent = document.getElementById('board-content');
-    
-    let allAthletes = [];
-    let currentPage = 0;
-    let rotationInterval = null;
+        .header { background: #1a1f24; padding: 16px 24px; border-bottom: 2px solid #2a3138; }
+        .header-title { color: #ffffff; font-size: 28px; font-weight: 900; text-transform: uppercase; }
+        .header-subtitle { color: #d97736; font-size: 13px; font-weight: 700; text-transform: uppercase; margin-top: 4px; }
 
-    // Helper to determine if a racer is a Team or Solo
-    function getCategoryType(divisionName) {
-        if (!divisionName) return "SOLO";
-        return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
-    }
+        .row { display: flex; align-items: center; padding: 14px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .rank-col { width: 45px; color: #d97736; font-size: 22px; font-weight: 900; }
+        .name-col { flex-grow: 1; color: #f0f0f0; font-size: 19px; font-weight: 700; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 15px; }
+        .metric-col { color: #ffffff; font-size: 19px; font-weight: 800; text-align: right; }
+        
+        .type-team, .type-solo { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: middle; text-transform: uppercase; }
+        .type-team { background: #d97736; color: white; }
+        .type-solo { background: #444; color: #ccc; }
 
-    async function fetchRaceData() {
-        try {
-            const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
-            if (!response.ok) throw new Error(`Server Error: ${response.status}`);
-            const data = await response.json();
-            
-            if (!data.starters || data.starters.length === 0) {
-                boardContent.innerHTML = '<div class="status-msg">Waiting for start signal...</div>';
-                return;
+        .status-msg { padding: 40px 24px; text-align: center; color: #88929b; font-size: 16px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <div class="leaderboard-wrapper">
+        <div class="header">
+            <div class="header-title">ROCK 2 ROCK</div>
+            <div class="header-subtitle">Live Leaderboard</div>
+        </div>
+        <div id="board-content">
+            <div class="status-msg">Syncing...</div>
+        </div>
+    </div>
+
+    <script>
+        const EVENT_ID = "6a4ed5aa90b2726af2881807"; 
+        const ROTATION_RATE_MS = 8000;
+        const boardContent = document.getElementById('board-content');
+        
+        let allAthletes = [];
+        let currentPage = 0;
+
+        function getCategoryType(divisionName) {
+            if (!divisionName) return "SOLO";
+            return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
+        }
+
+        async function fetchRaceData() {
+            try {
+                const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
+                const data = await response.json();
+                
+                if (!data.starters || data.starters.length === 0) {
+                    boardContent.innerHTML = '<div class="status-msg">Waiting for start...</div>';
+                    return;
+                }
+
+                allAthletes = data.starters.sort((a, b) => {
+                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
+                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
+                    return aDist - bDist;
+                });
+                
+                console.log("Data fetched. Total racers:", allAthletes.length);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                boardContent.innerHTML = '<div class="status-msg">Error loading data.</div>';
             }
+        }
 
-            // Sort by distance remaining
-            allAthletes = data.starters.sort((a, b) => {
-                let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
-                let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
-                return aDist - bDist;
+        function renderNextPage() {
+            if (allAthletes.length === 0) return;
+
+            const startIndex = currentPage * 5;
+            const pageAthletes = allAthletes.slice(startIndex, startIndex + 5);
+
+            let htmlString = '';
+            pageAthletes.forEach((athlete, index) => {
+                const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
+                const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
+                const typeLabel = getCategoryType(athlete.tags?.Division);
+                const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
+
+                htmlString += `
+                    <div class="row">
+                        <div class="rank-col">${startIndex + index + 1}</div>
+                        <div class="name-col">${athlete.name} <span class="${typeClass}">${typeLabel}</span></div>
+                        <div class="metric-col">${displayMetric}</div>
+                    </div>
+                `;
             });
 
-            if (!rotationInterval) {
-                renderNextPage(); 
-                rotationInterval = setInterval(renderNextPage, ROTATION_RATE_MS);
-            }
-        } catch (error) {
-            console.error("Data fetch failed:", error);
+            boardContent.innerHTML = htmlString;
+            currentPage = (startIndex + 5 >= allAthletes.length) ? 0 : currentPage + 1;
         }
-    }
 
-    function renderNextPage() {
-        if (allAthletes.length === 0) return;
-
-        const startIndex = currentPage * PAGE_SIZE;
-        const pageAthletes = allAthletes.slice(startIndex, startIndex + PAGE_SIZE);
-
-        let htmlString = '';
-        pageAthletes.forEach((athlete, index) => {
-            const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
-            const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
-            const athleteName = athlete.name || "Paddler";
-            
-            // Determine type for label
-            const typeLabel = getCategoryType(athlete.tags?.Division);
-            const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
-
-            htmlString += `
-                <div class="row">
-                    <div class="rank-col">${startIndex + index + 1}</div>
-                    <div class="name-col">
-                        ${athleteName}
-                        <span class="${typeClass}">${typeLabel}</span>
-                    </div>
-                    <div class="metric-col">${displayMetric}</div>
-                </div>
-            `;
-        });
-
-        boardContent.innerHTML = htmlString;
-
-        currentPage++;
-        if (currentPage * PAGE_SIZE >= allAthletes.length) currentPage = 0;
-    }
-
-    fetchRaceData();
-    setInterval(fetchRaceData, REFRESH_RATE_MS);
-</script>
-
-<!-- Add this to your <style> block to make the labels look good -->
-<style>
-    .type-team, .type-solo {
-        font-size: 10px;
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-left: 8px;
-        vertical-align: middle;
-        text-transform: uppercase;
-    }
-    .type-team { background: #d97736; color: white; }
-    .type-solo { background: #444; color: #ccc; }
-</style>
+        // Init
+        fetchRaceData();
+        setInterval(fetchRaceData, 60000); // Re-fetch every min
+        setInterval(renderNextPage, ROTATION_RATE_MS); // Rotate every 8s
+    </script>
+</body>
+</html>
