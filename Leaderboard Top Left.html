@@ -57,6 +57,12 @@
             return divisionName.toLowerCase().includes("team") ? "TEAM" : "SOLO";
         }
 
+        // Using 999999 as a safety value for sorting pre-race
+        function getDistance(athlete) {
+            if (!athlete.current || athlete.current.toFinish === undefined) return 999999;
+            return athlete.current.toFinish;
+        }
+
         async function fetchRaceData() {
             try {
                 const response = await fetch(`https://racemap.com/api/data/v1/${EVENT_ID}/current`);
@@ -67,13 +73,17 @@
                     return;
                 }
 
-                allAthletes = data.starters.sort((a, b) => {
-                    let aDist = (typeof a.current?.toFinish === 'number') ? a.current.toFinish : Infinity;
-                    let bDist = (typeof b.current?.toFinish === 'number') ? b.current.toFinish : Infinity;
-                    return aDist - bDist;
-                });
+                // Categorize and Sort
+                const solos = data.starters
+                    .filter(s => getCategoryType(s.tags?.Division) === 'SOLO')
+                    .sort((a, b) => getDistance(a) - getDistance(b));
                 
-                console.log("Data fetched. Total racers:", allAthletes.length);
+                const teams = data.starters
+                    .filter(s => getCategoryType(s.tags?.Division) === 'TEAM')
+                    .sort((a, b) => getDistance(a) - getDistance(b));
+
+                allAthletes = [...solos, ...teams];
+                
             } catch (error) {
                 console.error("Fetch Error:", error);
                 boardContent.innerHTML = '<div class="status-msg">Error loading data.</div>';
@@ -88,10 +98,14 @@
 
             let htmlString = '';
             pageAthletes.forEach((athlete, index) => {
-                const milesToFinish = (athlete.current?.toFinish * 0.000621371) || 0;
-                const displayMetric = milesToFinish > 0 ? `${milesToFinish.toFixed(1)} mi` : "FINISH";
+                const rawDist = getDistance(athlete);
                 const typeLabel = getCategoryType(athlete.tags?.Division);
                 const typeClass = typeLabel === "TEAM" ? "type-team" : "type-solo";
+                
+                // Same logic as ticker: if dist is large/undefined, show ON COURSE
+                const displayMetric = (rawDist === 999999 || rawDist === 0) 
+                    ? "ON COURSE" 
+                    : `${(rawDist * 0.000621371).toFixed(1)} mi`;
 
                 htmlString += `
                     <div class="row">
@@ -106,10 +120,9 @@
             currentPage = (startIndex + 5 >= allAthletes.length) ? 0 : currentPage + 1;
         }
 
-        // Init
         fetchRaceData();
-        setInterval(fetchRaceData, 60000); // Re-fetch every min
-        setInterval(renderNextPage, ROTATION_RATE_MS); // Rotate every 8s
+        setInterval(fetchRaceData, 60000); 
+        setInterval(renderNextPage, ROTATION_RATE_MS); 
     </script>
 </body>
 </html>
